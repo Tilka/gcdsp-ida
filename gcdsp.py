@@ -117,7 +117,7 @@ class Operand(object):
             raise ValueError("unhandled type: %04X" % type)
 
 class Instr(object):
-    def __init__(self, name, opcode, mask, size, operands=[], ext_operands=[],
+    def __init__(self, name, opcode, mask, size, operands=[], ext_operands=[], cmt='',
                  stops=False, calls=False, jumps=False, shifts=False,
                  hll=False):
         self.name = name
@@ -127,6 +127,8 @@ class Instr(object):
         self.all_operands = operands + ext_operands
 
         self.all_ops_parsed = [Operand(*o) for o in self.all_operands]
+
+        self.cmt = cmt
 
         self.stops = stops
         self.calls = calls
@@ -247,7 +249,7 @@ class GCDSPProcessor(processor_t):
             stops = op[0] in ("RET", "RTI", "HALT", "JMP", "JMPR")
             jumps = op[0].startswith("J")
             calls = op[0].startswith("CALL")
-            instr = Instr(op[0], op[1], op[2], op[3], op[5],
+            instr = Instr(op[0], op[1], op[2], op[3], op[5], cmt=op[8],
                           stops=stops, jumps=jumps, calls=calls)
 
             if op[6]:  # extended
@@ -258,8 +260,9 @@ class GCDSPProcessor(processor_t):
                     new_name = instr.name + "'" + ext[0]
                     new_opcode = instr.opcode | ext[1]
                     new_mask = instr.mask | ext[2]
+                    new_cmt = op[8] + '; ' + ext[8]
                     xinstr = Instr(new_name, new_opcode, new_mask, instr.size,
-                                   instr.operands, ext_operands=ext[5],
+                                   instr.operands, ext_operands=ext[5], cmt=new_cmt,
                                    stops=stops, jumps=jumps, calls=calls)
                     self._add_instruction(xinstr)
 
@@ -269,7 +272,6 @@ class GCDSPProcessor(processor_t):
                     instr.mask |= 0xFF
 
             self._add_instruction(instr)
-            self.instrs_list.append(instr)
 
         self.instruc = [{ "name": i.name, "feature": i.flags }
                         for i in self.instrs_list]
@@ -409,6 +411,9 @@ class GCDSPProcessor(processor_t):
         term_output_buffer()
         cvar.gl_comm = 1  # allow comments at end of line
         MakeLine(buf)
+
+    def notify_get_autocmt(self):
+        return self.instrs_list[cmd.itype].cmt
 
 def PROCESSOR_ENTRY():
     return GCDSPProcessor()
